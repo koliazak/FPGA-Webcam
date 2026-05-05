@@ -15,7 +15,7 @@ The development is divided into three main phases to ensure iterative progress o
 
 - **Goal:** Establish a reliable image capture pipeline and stream the video to a web interface.
 - **Tasks:**
-  - Implement moudule in PL (FPGA) to configure the OV7670 registers.
+  - Implement mowdule in PL (FPGA) to configure the OV7670 registers.
   - Develop a pixel capture module to receive parallel data from the camera and convert it to an AXI-Stream.
   - Use DMA to write frames to DDR memory.
   - Implement a lightweight web server on the PS (ARM processor) running Petalinux to stream the frames.
