@@ -1,0 +1,19 @@
+/include/ "system-conf.dtsi"
+
+/ {
+    reserved-memory {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
+
+        video_dma_mem: buffer@E000000 {
+            no-map;
+            reg = <0xE000000 0x200000>;   /* 2MB reserved for 3 frames */
+        };
+    };
+};
+
+&axi_dma_0 {
+    compatible = "generic-uio";
+};
+
