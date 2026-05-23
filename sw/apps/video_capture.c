@@ -5,11 +5,27 @@
 #include <sys/mman.h>
 #include <string.h>
 
-// AXI DMA S2MM
+// AXI DMA (S2MM) register offsets
 #define S2MM_CR      0x30 / 4   // Control Register
 #define S2MM_SR      0x34 / 4   // Status Register
 #define S2MM_DA      0x48 / 4   // Destination Address
 #define S2MM_LENGTH  0x58 / 4   // Transfer Length
+
+// AXI DMA (S2MM) register values
+#define S2MM_CR_RUN_STOP    (1 << 0)
+#define S2MM_CR_IOC_IRQ_EN  (1 << 12)
+#define S2MM_CR_SOFT_RST    (1 << 2)
+
+
+#define S2MM_SR_INT_ERR     (1 << 4)
+#define S2MM_SR_SLV_ERR     (1 << 5)
+#define S2MM_SR_DEC_ERR     (1 << 6)
+
+#define S2MM_SR_IOC_IRQ_CLR (1 << 12)
+#define S2MM_SR_DLY_IRQ_CLR (1 << 13)
+#define S2MM_SR_ERR_IRQ_CLR (1 << 14)
+
+
 
 // OV7670 camera parameters
 #define CAM_WIDTH       640
@@ -18,7 +34,7 @@
 #define ROW_SIZE        (CAM_WIDTH * CAM_BPP)  // 1,280 bytes per row
 #define FRAME_SIZE      (CAM_WIDTH * CAM_HEIGHT * CAM_BPP)
 
-#define RAM_BUFFER_ADDR 0x0FE00000 // See system-user.dtsi
+#define RAM_BUFFER_ADDR 0x0E000000
 #define RAM_BUFFER_SIZE 0x00200000
 
 typedef struct {
@@ -33,6 +49,8 @@ void rgb565_to_rgb(uint16_t pixel, uint8_t *r, uint8_t *g, uint8_t *b) {
     *g = (p->g << 2) | (p->g >> 4);
     *b = (p->b << 3) | (p->b >> 2);
 }
+
+
 
 int main() {
     int fd_uio = open("/dev/uio0", O_RDWR);
@@ -58,7 +76,7 @@ int main() {
     }
     
     volatile uint8_t *video_buf = (volatile uint8_t *)mmap(NULL, RAM_BUFFER_SIZE, 
-                                   PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem, RAM_BUFFER_ADDR);
+                                    PROT_READ | PROT_WRITE, MAP_SHARED, fd_mem, RAM_BUFFER_ADDR);
     if (video_buf == MAP_FAILED) {
         perror("Failed to mmap video buffer");
         munmap((void *)dma_regs, 0x1000);
@@ -74,7 +92,7 @@ int main() {
     printf("Capturing 2 complete frames...\n\n");
 
     // Initialize DMA
-    dma_regs[S2MM_CR] = 0x1001;          // Run + IOC_IrqEn
+    dma_regs[S2MM_CR] = S2MM_CR_RUN_STOP | S2MM_CR_IOC_IRQ_EN;
     dma_regs[S2MM_DA] = RAM_BUFFER_ADDR;
 
     uint32_t unmask = 1;
@@ -87,35 +105,36 @@ int main() {
     while (frame_count < 2) {
         write(fd_uio, &unmask, sizeof(unmask));
 
-        // Start DMA for one row
+        // Start DMA for ONE ROW
         dma_regs[S2MM_LENGTH] = ROW_SIZE;
 
         // Wait for row interrupt
         read(fd_uio, &irq_count, sizeof(irq_count));
+        
 
         uint32_t status = dma_regs[S2MM_SR];
 
         // Clear interrupt status
-        dma_regs[S2MM_SR] = 0x7000;
+        dma_regs[S2MM_SR] = S2MM_SR_IOC_IRQ_CLR | S2MM_SR_DLY_IRQ_CLR | S2MM_SR_ERR_IRQ_CLR;
 
         // Check for errors
-        if (status & 0x00000001) {
+        if (status & (S2MM_SR_DEC_ERR | S2MM_SR_INT_ERR | S2MM_SR_SLV_ERR)) {
             printf("ERROR: DMA Halted! Status = 0x%08x\n", status);
             
             // Reset DMA
-            dma_regs[S2MM_CR] = 0x0004;
-            while(dma_regs[S2MM_CR] & 0x0004);
+            dma_regs[S2MM_CR] = S2MM_CR_SOFT_RST;
+            while(dma_regs[S2MM_CR] & S2MM_CR_SOFT_RST);
             
             // Restart
-            dma_regs[S2MM_CR] = 0x1001;
+            dma_regs[S2MM_CR] = S2MM_CR_RUN_STOP | S2MM_CR_IOC_IRQ_EN;
             dma_regs[S2MM_DA] = RAM_BUFFER_ADDR + current_buffer_offset;
             continue;
         }
 
         row_count++;
 
-        // Frame start detection by counting 480 rows
-        // TODO: use tuser for this purpose 
+        // TODO: read tuser/tlast from registers here
+        // Now detection frame starts by counting 480 rows
         if (!frame_started) {
             printf("Frame %d started\n", frame_count + 1);
             frame_started = 1;
@@ -123,7 +142,8 @@ int main() {
 
         // Print progress every 100 rows
         if (row_count % 100 == 0) {
-            printf("  Received %d rows (%.1f%% of frame)\n", row_count, (100.0 * (row_count % CAM_HEIGHT) / CAM_HEIGHT));
+            printf("  Received %d rows (%.1f%% of frame)\n", 
+                   row_count, (100.0 * (row_count % CAM_HEIGHT) / CAM_HEIGHT));
         }
 
         // Check if frame is complete
