@@ -7,6 +7,9 @@ FFF0 // delay
 0C00 // COM3,      default settings
 3E00 // COM14,     no scaling, normal pclock
 0400 // COM1,      disable CCIR656
+
+// 8C02 // RGB444: Enable; write 0x00 to enable RGB565
+
 40d0 // COM15,     RGB565, full output range
 3a04 // TSLB       set correct output data sequence (magic)
 1418 // COM9       MAX AGC value x4
