@@ -50,6 +50,36 @@ void rgb565_to_rgb(uint16_t pixel, uint8_t *r, uint8_t *g, uint8_t *b) {
     *b = (p->b << 3) | (p->b >> 2);
 }
 
+static void cache_inv(void *addr, size_t len)
+{
+    uintptr_t a = (uintptr_t)addr & ~31u;
+    uintptr_t e = ((uintptr_t)addr + len + 31u) & ~31u;
+    for (; a < e; a += 32)
+        __asm__ __volatile__("mcr p15, 0, %0, c7, c6, 1" :: "r"(a) : "memory");
+    __asm__ __volatile__("dsb" ::: "memory");
+}
+
+// PPM
+void save_frame_ppm(const char *filename, const volatile uint16_t *rgb565, int w, int h)
+{
+    FILE *f = fopen(filename, "wb");
+    if (!f) { perror("fopen"); return; }
+
+    fprintf(f, "P6\n%d %d\n255\n", w, h);
+
+    for (int y = 0; y < h; y++) {
+        for (int x = 0; x < w; x++) {
+            uint16_t p = rgb565[y * w + x];
+            uint8_t r = ((p >> 11) & 0x1F) << 3;
+            uint8_t g = ((p >> 5)  & 0x3F) << 2;
+            uint8_t b = ((p >> 0)  & 0x1F) << 3;
+            uint8_t pix[3] = {r, g, b};
+            fwrite(pix, 1, 3, f);
+        }
+    }
+    fclose(f);
+    printf("Saved %s\n", filename);
+}
 
 
 int main() {
@@ -149,9 +179,15 @@ int main() {
         // Check if frame is complete
         if (row_count % CAM_HEIGHT == 0) {
             frame_count++;
+
             uint32_t frame_buffer_offset = (frame_count - 1) * FRAME_SIZE;
             volatile uint16_t *frame_data = (volatile uint16_t *)(video_buf + frame_buffer_offset);
             
+            cache_inv((void *)(video_buf + frame_buffer_offset), FRAME_SIZE);
+            if (frame_count == 1)
+                save_frame_ppm("/tmp/frame1.ppm", frame_data, CAM_WIDTH, CAM_HEIGHT);
+            else if (frame_count == 2)
+                save_frame_ppm("/tmp/frame2.ppm", frame_data, CAM_WIDTH, CAM_HEIGHT);            
             printf("\nFrame %d COMPLETE (received %d rows)\n", frame_count, CAM_HEIGHT);
 
             // Display sample data from completed frame
