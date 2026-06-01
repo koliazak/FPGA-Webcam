@@ -107,7 +107,8 @@ set_property IOSTANDARD LVCMOS33 [get_ports pwdn]
 set_property IOSTANDARD LVCMOS33 [get_ports cam_rst_n]
 
 # p_clock K19
-set_property PACKAGE_PIN J20 [get_ports xclk]
+
+set_property PACKAGE_PIN J20 [get_ports xclk] 
 set_property PACKAGE_PIN J19 [get_ports vsync]
 set_property PACKAGE_PIN K18 [get_ports href]
 set_property PACKAGE_PIN L19 [get_ports pwdn]

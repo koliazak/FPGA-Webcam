@@ -8,7 +8,7 @@
 
         video_dma_mem: buffer@E000000 {
             no-map;
-            reg = <0xE000000 0x200000>;   /* 2MB reserved for 3 frames */
+            reg = <0xE000000 0x400000>;   /* 4MB reserved for frames */
         };
     };
 };

@@ -50,15 +50,6 @@ void rgb565_to_rgb(uint16_t pixel, uint8_t *r, uint8_t *g, uint8_t *b) {
     *b = (p->b << 3) | (p->b >> 2);
 }
 
-static void cache_inv(void *addr, size_t len)
-{
-    uintptr_t a = (uintptr_t)addr & ~31u;
-    uintptr_t e = ((uintptr_t)addr + len + 31u) & ~31u;
-    for (; a < e; a += 32)
-        __asm__ __volatile__("mcr p15, 0, %0, c7, c6, 1" :: "r"(a) : "memory");
-    __asm__ __volatile__("dsb" ::: "memory");
-}
-
 // PPM
 void save_frame_ppm(const char *filename, const volatile uint16_t *rgb565, int w, int h)
 {
@@ -115,32 +106,32 @@ int main() {
         return -1;
     }
 
-    printf("=== OV7670 Video Capture (Row-wise) ===\n");
-    printf("Frame size: %dx%d\n", CAM_WIDTH, CAM_HEIGHT);
-    printf("Row size: %d bytes\n", ROW_SIZE);
-    printf("Interrupts per frame: %d (one per row)\n", CAM_HEIGHT);
-    printf("Capturing 2 complete frames...\n\n");
+
+    printf("Capturing 2 complete frames (Full Frame Mode)...\n\n");
 
     // Initialize DMA
     dma_regs[S2MM_CR] = S2MM_CR_RUN_STOP | S2MM_CR_IOC_IRQ_EN;
-    dma_regs[S2MM_DA] = RAM_BUFFER_ADDR;
 
     uint32_t unmask = 1;
     uint32_t irq_count;
     uint32_t frame_count = 0;
-    uint32_t row_count = 0;
-    uint32_t current_buffer_offset = 0;
-    int frame_started = 0;
 
     while (frame_count < 2) {
+        // Unmask UIO interrupt
         write(fd_uio, &unmask, sizeof(unmask));
 
-        // Start DMA for ONE ROW
-        dma_regs[S2MM_LENGTH] = ROW_SIZE;
+        printf("Frame %d started...\n", frame_count + 1);
 
-        // Wait for row interrupt
+        // Set destination address for the frame
+        uint32_t current_buffer_offset = frame_count * FRAME_SIZE;
+        dma_regs[S2MM_DA] = RAM_BUFFER_ADDR + current_buffer_offset;
+
+        // Start DMA for the whole frame 
+        // FRAME_SIZE must be 640 * 480 * 2 = 614400 bytes
+        dma_regs[S2MM_LENGTH] = FRAME_SIZE; 
+
+        // Wait for frame interrupt (will trigger when TLAST is received)
         read(fd_uio, &irq_count, sizeof(irq_count));
-        
 
         uint32_t status = dma_regs[S2MM_SR];
 
@@ -150,92 +141,24 @@ int main() {
         // Check for errors
         if (status & (S2MM_SR_DEC_ERR | S2MM_SR_INT_ERR | S2MM_SR_SLV_ERR)) {
             printf("ERROR: DMA Halted! Status = 0x%08x\n", status);
-            
             // Reset DMA
             dma_regs[S2MM_CR] = S2MM_CR_SOFT_RST;
             while(dma_regs[S2MM_CR] & S2MM_CR_SOFT_RST);
-            
-            // Restart
             dma_regs[S2MM_CR] = S2MM_CR_RUN_STOP | S2MM_CR_IOC_IRQ_EN;
-            dma_regs[S2MM_DA] = RAM_BUFFER_ADDR + current_buffer_offset;
             continue;
         }
 
-        row_count++;
+        frame_count++;
 
-        // TODO: read tuser/tlast from registers here
-        // Now detection frame starts by counting 480 rows
-        if (!frame_started) {
-            printf("Frame %d started\n", frame_count + 1);
-            frame_started = 1;
-        }
-
-        // Print progress every 100 rows
-        if (row_count % 100 == 0) {
-            printf("  Received %d rows (%.1f%% of frame)\n", 
-                   row_count, (100.0 * (row_count % CAM_HEIGHT) / CAM_HEIGHT));
-        }
-
-        // Check if frame is complete
-        if (row_count % CAM_HEIGHT == 0) {
-            frame_count++;
-
-            uint32_t frame_buffer_offset = (frame_count - 1) * FRAME_SIZE;
-            volatile uint16_t *frame_data = (volatile uint16_t *)(video_buf + frame_buffer_offset);
-            
-            cache_inv((void *)(video_buf + frame_buffer_offset), FRAME_SIZE);
-            if (frame_count == 1)
-                save_frame_ppm("/tmp/frame1.ppm", frame_data, CAM_WIDTH, CAM_HEIGHT);
-            else if (frame_count == 2)
-                save_frame_ppm("/tmp/frame2.ppm", frame_data, CAM_WIDTH, CAM_HEIGHT);            
-            printf("\nFrame %d COMPLETE (received %d rows)\n", frame_count, CAM_HEIGHT);
-
-            // Display sample data from completed frame
-            printf("  Top-left corner (first 5 pixels of first row):\n    ");
-            for (int i = 0; i < 5; i++) {
-                uint16_t pixel = frame_data[i];
-                uint8_t r, g, b;
-                rgb565_to_rgb(pixel, &r, &g, &b);
-                printf("[%02x%02x%02x] ", r, g, b);
-            }
-            printf("\n");
-
-            // Center pixel
-            uint32_t center_idx = (CAM_HEIGHT / 2) * CAM_WIDTH + (CAM_WIDTH / 2);
-            uint16_t center_pixel = frame_data[center_idx];
-            uint8_t r, g, b;
-            rgb565_to_rgb(center_pixel, &r, &g, &b);
-            printf("  Center pixel [320,240]: RGB(%d, %d, %d) = 0x%04x\n", 
-                   r, g, b, center_pixel);
-
-            // Last row sample
-            printf("  Last row [479] first pixels:\n    ");
-            uint32_t last_row_start = (CAM_HEIGHT - 1) * CAM_WIDTH;
-            for (int i = 0; i < 5; i++) {
-                uint16_t pixel = frame_data[last_row_start + i];
-                rgb565_to_rgb(pixel, &r, &g, &b);
-                printf("[%02x%02x%02x] ", r, g, b);
-            }
-            printf("\n\n");
-
-            // Setup for next frame
-            if (frame_count < 2) {
-                current_buffer_offset = frame_count * FRAME_SIZE;
-                dma_regs[S2MM_DA] = RAM_BUFFER_ADDR + current_buffer_offset;
-                frame_started = 0;
-            }
-        } else {
-            // Setup DMA for next row in current frame
-            current_buffer_offset += ROW_SIZE;
-            dma_regs[S2MM_DA] = RAM_BUFFER_ADDR + current_buffer_offset;
-        }
+        volatile uint16_t *frame_data = (volatile uint16_t *)(video_buf + current_buffer_offset);
+        
+        char filename[32];
+        sprintf(filename, "/tmp/frame%d.ppm", frame_count);
+        save_frame_ppm(filename, frame_data, CAM_WIDTH, CAM_HEIGHT);
+        
+        printf("Frame %d COMPLETE (received %d bytes)\n", frame_count, FRAME_SIZE);
     }
 
-    printf("=== Capture Complete ===\n");
-    printf("Total rows received: %d\n", row_count);
-    printf("Complete frames: %d\n", frame_count);
-
-    // Cleanup
     munmap((void *)video_buf, RAM_BUFFER_SIZE);
     munmap((void *)dma_regs, 0x1000);
     close(fd_mem);
@@ -243,3 +166,4 @@ int main() {
 
     return 0;
 }
+

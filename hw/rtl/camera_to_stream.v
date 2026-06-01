@@ -1,12 +1,15 @@
+`timescale 1ns / 1ps
+
 module ov7670_axi_stream_capture #(
-    parameter WIDTH = 640
+    parameter WIDTH = 640,
+    parameter HEIGHT = 480
 )(
     input  wire        pclk,
     input  wire        vsync,
     input  wire        href,
     input  wire [7:0]  d,
     input  wire        m_axis_tready,
-    
+
     output wire        m_axis_tvalid,
     output wire        m_axis_tlast,
     output wire        m_axis_tuser,
@@ -14,88 +17,113 @@ module ov7670_axi_stream_capture #(
     output wire        aclk
 );
 
-    reg  [15:0] d_latch         = 16'b0;
-    reg  [18:0] address         = 19'b0;
-    reg  [1:0]  line            = 2'b0;
-    reg  [6:0]  href_last       = 7'b0;
-    reg         we_reg          = 1'b0;
-    reg         href_hold       = 1'b0;
-    reg         latched_vsync   = 1'b0;
-    reg         latched_href    = 1'b0;
-    reg  [7:0]  latched_d       = 8'b0;
-    reg         sof             = 1'b0;
-    reg         eol             = 1'b0;
+    assign aclk = ~pclk;
+    reg        latched_vsync = 0;
+    reg        latched_href  = 0;
+    reg [7:0]  latched_d     = 0;
 
-    reg        tvalid_reg = 1'b0;
-    reg [15:0] tdata_reg  = 16'b0;
-    reg        tlast_reg  = 1'b0;
-    reg        tuser_reg  = 1'b0;
+    // Capture signals on falling edge of pclk due to ov7670 datasheet
+    always @(negedge pclk) begin
+        latched_vsync <= vsync;
+        latched_href  <= href;
+        latched_d     <= d;
+    end
+
+
+    reg [7:0]  byte1 = 0;
+    reg        byte_idx = 0;
+    reg        pixel_ready = 0;
+    reg [15:0] pixel_data = 0;
+
+    always @(posedge pclk) begin
+        pixel_ready <= 1'b0;
+        if (latched_vsync) begin
+            byte_idx <= 0;
+        end else if (latched_href) begin
+            if (byte_idx == 0) begin
+                byte1 <= latched_d;
+                byte_idx <= 1'b1;
+            end else begin
+                pixel_data <= {byte1, latched_d};
+                pixel_ready <= 1'b1;
+                byte_idx <= 1'b0;
+            end
+        end else begin
+            byte_idx <= 0;
+        end
+    end
+
+
+    // FSM
+    localparam ST_WAIT_VSYNC = 2'd0;
+    localparam ST_CAPTURE    = 2'd1;
+    localparam ST_ABORT      = 2'd2;
+
+    reg [1:0]  state = ST_WAIT_VSYNC;
+    reg [18:0] pixel_cnt = 0;
+    reg        early_tlast_sent = 0;
+
+    reg        tvalid_reg = 0;
+    reg [15:0] tdata_reg  = 0;
+    reg        tlast_reg  = 0;
+    reg        tuser_reg  = 0;
 
     assign m_axis_tvalid = tvalid_reg;
     assign m_axis_tdata  = tdata_reg;
     assign m_axis_tlast  = tlast_reg;
     assign m_axis_tuser  = tuser_reg;
 
-    assign aclk          = ~pclk;
-
     always @(posedge pclk) begin
-        if (we_reg) begin
-            if (m_axis_tready || !tvalid_reg) begin
-                tvalid_reg <= 1'b1;
-                tdata_reg  <= d_latch;
-                tlast_reg  <= eol;
-                tuser_reg  <= sof;
-                address    <= address + 1;
-            end
-        end else if (m_axis_tready) begin
+        if (tvalid_reg && m_axis_tready) begin
             tvalid_reg <= 1'b0;
+            tlast_reg  <= 1'b0;
+            tuser_reg  <= 1'b0;
         end
-
-        if (href_hold == 1'b0 && latched_href == 1'b1) begin
-            case (line)
-                2'b00: line <= 2'b01;
-                2'b01: line <= 2'b10;
-                2'b10: line <= 2'b11;
-                default: line <= 2'b00;
-            endcase
-        end
-        href_hold <= latched_href;
-
-        if (latched_href) begin
-            d_latch <= {d_latch[7:0], latched_d};
-        end
-        we_reg <= 1'b0;
 
         if (latched_vsync) begin
-            address    <= 19'b0;
-            href_last  <= 7'b0;
-            line       <= 2'b0;
-        end else begin
-            if (href_last[0]) begin
-                we_reg <= 1'b1;
-                href_last <= 7'b0;
+            if (m_axis_tready) begin
+                state <= ST_CAPTURE;
             end else begin
-                href_last <= {href_last[5:0], latched_href};
+                state <= ST_WAIT_VSYNC;
             end
-        end
-
-        if ((address % WIDTH) == (WIDTH - 1)) begin
-            eol <= 1'b1;
+            pixel_cnt <= 0;
+            early_tlast_sent <= 0;
+            tvalid_reg <= 1'b0;
+            tlast_reg  <= 1'b0;
         end else begin
-            eol <= 1'b0;
-        end
+            case (state)
+                ST_CAPTURE: begin
+                    if (pixel_ready) begin
+                        // Handling FIFO overflow
+                        if (tvalid_reg && !m_axis_tready) begin
+			// Abort frame if FIFO is overflowed
+                            state <= ST_ABORT;
+                        end else begin
+                            tdata_reg  <= pixel_data;
+                            tvalid_reg <= 1'b1;
+                            tuser_reg  <= (pixel_cnt == 0); // SOF on the first pixel
+                            tlast_reg  <= (pixel_cnt == (WIDTH * HEIGHT) - 1); // EOF on the last pixel
+                            pixel_cnt  <= pixel_cnt + 1;
+                        end
+                    end
+                end
 
-        if (address == 0) begin
-            sof <= 1'b1;
-        end else begin
-            sof <= 1'b0;
-        end
-    end
+                ST_ABORT: begin
+                    // "fake" TLAST, so DMA sends interrupt
+                    // and this error is detected in software
+                    if (!early_tlast_sent && !tvalid_reg) begin
+                        tdata_reg  <= 16'h0000;
+                        tvalid_reg <= 1'b1;
+                        tlast_reg  <= 1'b1;
+                        early_tlast_sent <= 1'b1;
+                    end
+                end
 
-    always @(negedge pclk) begin
-        latched_d     <= d;
-        latched_href  <= href;
-        latched_vsync <= vsync;
+                ST_WAIT_VSYNC: begin
+                    // just ignore pixels while waiting for vsync
+                end
+            endcase
+        end
     end
 
 endmodule
