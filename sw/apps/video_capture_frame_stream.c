@@ -6,6 +6,9 @@
 #include <sys/mman.h>
 #include <string.h>
 #include <signal.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+
 
 #define S2MM_CR      (0x30 / 4)
 #define S2MM_SR      (0x34 / 4)
@@ -31,6 +34,7 @@
 
 #define RAM_BUFFER_ADDR 0x0E000000
 #define RAM_BUFFER_SIZE 0x00200000
+#define FIFO_PATH "/tmp/frame_ready"
 
 #define SHM_FRAME_TMP   "/dev/shm/frame_next.raw"
 #define SHM_FRAME       "/dev/shm/frame.raw"
@@ -80,6 +84,15 @@ int main()
     printf("[CAPTURE] %dx%d  %u bytes/frame\n\n",
            CAM_WIDTH, CAM_HEIGHT, FRAME_SIZE);
 
+
+    mkfifo(FIFO_PATH, 0666);
+    int fd_fifo = open(FIFO_PATH, O_WRONLY | O_NONBLOCK);
+    if (fd_fifo < 0) {
+        perror("open fifo");
+    }
+
+
+
     while (g_running) {
         write(fd_uio, &unmask, sizeof(unmask));
         dma_regs[S2MM_DA] = RAM_BUFFER_ADDR;
@@ -111,6 +124,12 @@ int main()
                 fsync(fd_out);
                 close(fd_out);
                 rename(SHM_FRAME_TMP, SHM_FRAME);
+
+                if (fd_fifo >= 0) {
+                    char c = 1;
+                    write(fd_fifo, %c, sizeof(c));
+                }
+
             } else {
                 close(fd_out);
                 perror("write frame");
@@ -125,9 +144,11 @@ int main()
 
     printf("\n[CAPTURE] Stopped. Total: %u frames\n", frame_count);
 
+
     munmap((void *)video_buf, RAM_BUFFER_SIZE);
     munmap((void *)dma_regs, 0x1000);
     close(fd_mem);
     close(fd_uio);
+    if (fd_fifo >= 0) close(fd_fifo);
     return 0;
 }

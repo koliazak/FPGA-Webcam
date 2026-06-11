@@ -8,6 +8,7 @@ import threading
 
 """MJPEG stream from /dev/shm/frame.raw"""
 
+FIFO_PATH = '/tmp/frame_ready'
 FRAME_PATH = '/dev/shm/frame.raw'
 W, H = 640, 480
 FRAME_SIZE = W * H * 2
@@ -17,6 +18,8 @@ latest_jpeg = None
 jpeg_lock = threading.Lock()
 frame_ready = threading.Event()
 
+last_sent_id = 0
+frame_id = 0
 
 def rgb565_to_bgr(raw):
     rgb565 = np.frombuffer(raw, dtype=np.uint16).reshape((H, W))
@@ -29,51 +32,45 @@ def rgb565_to_bgr(raw):
     return np.dstack((b, g, r)).astype(np.uint8)
 
 
+
 def encoder():
     global latest_jpeg
-    last_mtime_ns = 0
-    stale_warned = False
-    print("[encoder] thread started")
 
-    while True:
-        try:
-            st = os.stat(FRAME_PATH)
-            mtime_ns = getattr(st, 'st_mtime_ns', int(st.st_mtime * 1e9))
+    if not os.path.exists(FIFO_PATH):
+        os.mkfifo(FIFO_PATH);
 
-            if mtime_ns == last_mtime_ns:
-                # No new frame yet
-                elapsed = time.time() - (last_mtime_ns / 1e9 if last_mtime_ns else time.time())
-                if last_mtime_ns and elapsed > STALE_THRESHOLD_S and not stale_warned:
-                    print(f"[encoder] WARNING: no new frame for {elapsed:.1f}s (capture dead?)")
-                    stale_warned = True
-                time.sleep(0.02)
-                continue
+    print("[encoder] waiting for frames via FIFO")
 
-            last_mtime_ns = mtime_ns
-            stale_warned = False
+    fd = os.open(FIFO_PATH, os.O_RDONLY)
 
-            with open(FRAME_PATH, 'rb') as f:
-                raw = f.read()
+    try:
+        while True:
+            data = os.read(fd, 1)
 
-            if len(raw) != FRAME_SIZE:
-                print(f"[encoder] bad frame size {len(raw)}, expected {FRAME_SIZE}")
-                time.sleep(0.02)
-                continue
+            if not data:
+                break
 
-            bgr = rgb565_to_bgr(raw)
-            ret, jpeg = cv2.imencode('.jpg', bgr,
-                [int(cv2.IMWRITE_JPEG_QUALITY), 85])
-            if ret:
-                with jpeg_lock:
-                    latest_jpeg = jpeg.tobytes()
-                frame_ready.set()
+            try:
+                with open(FRAME_PATH, "rb") as f:
+                    raw = f.read()
 
-        except FileNotFoundError:
-            frame_ready.clear()
-            time.sleep(0.05)
-        except Exception as e:
-            print(f"[encoder] {e}")
-            time.sleep(0.1)
+                if len(raw) != FRAME_SIZE:
+                    print(f"[encoder] bad frame size {len(raw)}, expected {FRAME_SIZE}")
+                    continue 
+
+                bgr = rgb565_to_bgr(raw)
+                ret, jpeg = cv2.imencode(".jpg", bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
+                
+                if ret:
+                    with jpeg_lock:
+                        latest_jpeg = jpeg.tobytes()
+                        frame_id += 1
+                        frame_ready.set()
+           
+            except Exception as e:
+                print(f"[encoder] {e}")
+    finally:
+        os.close(fd)
 
 
 HTML = b'''<!DOCTYPE html>
@@ -102,14 +99,14 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 try:
                     with jpeg_lock:
                         jpeg = latest_jpeg
+                        current_id = frame_id
 
-                    if jpeg is None:
+                    if jpeg is None or current_id == last_sent_id:
                         # Wait up to 1s for a frame instead of busy-loop
-                        if not frame_ready.wait(timeout=1.0):
+                        if not frame_ready.wait(timeout=0.05):
                             continue
-                        with jpeg_lock:
-                            jpeg = latest_jpeg
-                        frame_ready.clear()
+                            
+                    last_sent_id = current_id
 
                     self.wfile.write(b'--frame\r\n')
                     self.wfile.write(b'Content-Type: image/jpeg\r\n')
