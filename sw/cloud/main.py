@@ -42,7 +42,7 @@ async def detect(file: Annotated[UploadFile, File(...)]):
 
     start = time.time()
 
-    results = model(img)
+    results = model(img, classes=[0])
     logger.info(f"Time: {(time.time() - start):.2f}s")
 
     response = {"coordinates": []}
