@@ -127,7 +127,7 @@ int main()
 
                 if (fd_fifo >= 0) {
                     char c = 1;
-                    write(fd_fifo, %c, sizeof(c));
+                    write(fd_fifo, &c, sizeof(c));
                 }
 
             } else {

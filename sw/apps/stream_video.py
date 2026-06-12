@@ -35,6 +35,7 @@ def rgb565_to_bgr(raw):
 
 def encoder():
     global latest_jpeg
+    global frame_id
 
     if not os.path.exists(FIFO_PATH):
         os.mkfifo(FIFO_PATH);
@@ -83,6 +84,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *a): pass
 
     def do_GET(self):
+        global frame_id, last_sent_id
         if self.path == '/':
             self.send_response(200)
             self.send_header('Content-Type', 'text/html')
@@ -105,7 +107,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                         # Wait up to 1s for a frame instead of busy-loop
                         if not frame_ready.wait(timeout=0.05):
                             continue
-                            
+
                     last_sent_id = current_id
 
                     self.wfile.write(b'--frame\r\n')
