@@ -48,7 +48,7 @@ async def detect(file: Annotated[UploadFile, File(...)]):
     response = {"coordinates": []}
 
     for box in results[0].boxes.xyxy:
-        response["coordinates"].append(box.tolist())
+        response["coordinates"].append(box.to(int).tolist())
 
     return response
 
