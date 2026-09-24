@@ -1,0 +1,24 @@
+left_cam
+SCL         - D19
+SDA         - D18
+Vsync       - H17
+Href        - C20
+Pclk        - K17 
+Xclk        - J18
+D7,D5,D3,D1 - E20, F20, F19, G20
+D6,D4,D2,D0 - A20, B19, D20, H18
+Rst_n       - B20
+Pwdn        - H16
+
+
+right_cam
+SCL         - J20
+SDA         - K19
+Vsync       - G19
+Href        - H20
+Pclk        - N20
+Xclk        - L16
+D7,D5,D3,D1 - L20, L17, K18, M17
+D6,D4,D2,D0 - M18, M20, M19, P18
+Rst_n       - J19
+Pwdn        - L19
