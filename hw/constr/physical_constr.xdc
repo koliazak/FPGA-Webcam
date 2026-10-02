@@ -76,54 +76,7 @@ set_property DRIVE 8 [get_ports {enet0_mii_txd[0]}]
 
 
 
-# Left camera
-
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[7]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[6]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[5]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[4]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[3]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[2]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[1]}]
-set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[0]}]
-
-set_property PACKAGE_PIN T19 [get_ports {pixel_data_r[7]}]
-set_property PACKAGE_PIN H16 [get_ports {pixel_data_r[6]}]
-set_property PACKAGE_PIN U20 [get_ports {pixel_data_r[5]}]
-set_property PACKAGE_PIN H18 [get_ports {pixel_data_r[4]}]
-set_property PACKAGE_PIN V20 [get_ports {pixel_data_r[3]}]
-set_property PACKAGE_PIN R18 [get_ports {pixel_data_r[2]}]
-set_property PACKAGE_PIN U19 [get_ports {pixel_data_r[1]}]
-set_property PACKAGE_PIN G20 [get_ports {pixel_data_r[0]}]
-
-
-set_property IOSTANDARD LVCMOS33 [get_ports pclk_r]
-create_clock -period 40.000 -name pclk_l [get_ports pclk_r]
-set_property PACKAGE_PIN K17 [get_ports pclk_r]
-
-
-set_property IOSTANDARD LVCMOS33 [get_ports xclk_r]
-set_property IOSTANDARD LVCMOS33 [get_ports vsync_r]
-set_property IOSTANDARD LVCMOS33 [get_ports href_r]
-#set_property IOSTANDARD LVCMOS33 [get_ports pwdn_r]
-#set_property IOSTANDARD LVCMOS33 [get_ports cam_rst_n_r]
-
-set_property PACKAGE_PIN J18 [get_ports xclk_r]
-set_property PACKAGE_PIN H17 [get_ports vsync_r]
-set_property PACKAGE_PIN P20 [get_ports href_r]
-#set_property PACKAGE_PIN H16 [get_ports pwdn_r]
-#set_property PACKAGE_PIN B20 [get_ports cam_rst_n_r]
-
-set_property PACKAGE_PIN D18 [get_ports siod_r]
-set_property IOSTANDARD LVCMOS33 [get_ports siod_r]
-set_property PULLTYPE PULLUP [get_ports siod_r]
-
-set_property PACKAGE_PIN E19 [get_ports sioc_r]
-set_property IOSTANDARD LVCMOS33 [get_ports sioc_r]
-set_property PULLTYPE PULLUP [get_ports sioc_r]
-
-
-# Right camera
+# Left Camera
 
 set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_l[7]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_l[6]}]
@@ -134,40 +87,87 @@ set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_l[2]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_l[1]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_l[0]}]
 
-set_property PACKAGE_PIN L20 [get_ports {pixel_data_l[7]}]
-set_property PACKAGE_PIN M18 [get_ports {pixel_data_l[6]}]
-set_property PACKAGE_PIN L17 [get_ports {pixel_data_l[5]}]
-set_property PACKAGE_PIN M20 [get_ports {pixel_data_l[4]}]
-set_property PACKAGE_PIN K18 [get_ports {pixel_data_l[3]}]
-set_property PACKAGE_PIN M19 [get_ports {pixel_data_l[2]}]
-set_property PACKAGE_PIN M17 [get_ports {pixel_data_l[1]}]
-set_property PACKAGE_PIN P18 [get_ports {pixel_data_l[0]}]
+set_property PACKAGE_PIN T19 [get_ports {pixel_data_l[7]}]
+set_property PACKAGE_PIN H16 [get_ports {pixel_data_l[6]}]
+set_property PACKAGE_PIN U20 [get_ports {pixel_data_l[5]}]
+set_property PACKAGE_PIN H18 [get_ports {pixel_data_l[4]}]
+set_property PACKAGE_PIN V20 [get_ports {pixel_data_l[3]}]
+set_property PACKAGE_PIN R18 [get_ports {pixel_data_l[2]}]
+set_property PACKAGE_PIN U19 [get_ports {pixel_data_l[1]}]
+set_property PACKAGE_PIN G20 [get_ports {pixel_data_l[0]}]
 
 
 set_property IOSTANDARD LVCMOS33 [get_ports pclk_l]
-create_clock -period 40.000 -name pclk_r [get_ports pclk_l]
-set_property PACKAGE_PIN N20 [get_ports pclk_l]
+create_clock -period 40.000 -name pclk_l [get_ports pclk_l]
+set_property PACKAGE_PIN K17 [get_ports pclk_l]
 
 
 set_property IOSTANDARD LVCMOS33 [get_ports xclk_l]
 set_property IOSTANDARD LVCMOS33 [get_ports vsync_l]
 set_property IOSTANDARD LVCMOS33 [get_ports href_l]
-set_property IOSTANDARD LVCMOS33 [get_ports pwdn_l]
-set_property IOSTANDARD LVCMOS33 [get_ports cam_rst_n_l]
+#set_property IOSTANDARD LVCMOS33 [get_ports pwdn_l]
+#set_property IOSTANDARD LVCMOS33 [get_ports cam_rst_n_l]
 
-set_property PACKAGE_PIN L16 [get_ports xclk_l]
-set_property PACKAGE_PIN G19 [get_ports vsync_l]
-set_property PACKAGE_PIN H20 [get_ports href_l]
-set_property PACKAGE_PIN L19 [get_ports pwdn_l]
-set_property PACKAGE_PIN J19 [get_ports cam_rst_n_l]
+set_property PACKAGE_PIN J18 [get_ports xclk_l]
+set_property PACKAGE_PIN H17 [get_ports vsync_l]
+set_property PACKAGE_PIN P20 [get_ports href_l]
+#set_property PACKAGE_PIN H16 [get_ports pwdn_l]
+#set_property PACKAGE_PIN B20 [get_ports cam_rst_n_l]
 
-set_property PACKAGE_PIN K19 [get_ports siod_l]
+set_property PACKAGE_PIN D18 [get_ports siod_l]
 set_property IOSTANDARD LVCMOS33 [get_ports siod_l]
 set_property PULLTYPE PULLUP [get_ports siod_l]
 
-set_property PACKAGE_PIN J20 [get_ports sioc_l]
+set_property PACKAGE_PIN E19 [get_ports sioc_l]
 set_property IOSTANDARD LVCMOS33 [get_ports sioc_l]
 set_property PULLTYPE PULLUP [get_ports sioc_l]
+
+
+# Right camera
+
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[7]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[6]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[5]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[4]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[3]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[2]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[1]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {pixel_data_r[0]}]
+
+set_property PACKAGE_PIN L20 [get_ports {pixel_data_r[7]}]
+set_property PACKAGE_PIN M18 [get_ports {pixel_data_r[6]}]
+set_property PACKAGE_PIN L17 [get_ports {pixel_data_r[5]}]
+set_property PACKAGE_PIN M20 [get_ports {pixel_data_r[4]}]
+set_property PACKAGE_PIN K18 [get_ports {pixel_data_r[3]}]
+set_property PACKAGE_PIN M19 [get_ports {pixel_data_r[2]}]
+set_property PACKAGE_PIN M17 [get_ports {pixel_data_r[1]}]
+set_property PACKAGE_PIN P18 [get_ports {pixel_data_r[0]}]
+
+
+set_property IOSTANDARD LVCMOS33 [get_ports pclk_r]
+create_clock -period 40.000 -name pclk_r [get_ports pclk_r]
+set_property PACKAGE_PIN N20 [get_ports pclk_r]
+
+
+set_property IOSTANDARD LVCMOS33 [get_ports xclk_r]
+set_property IOSTANDARD LVCMOS33 [get_ports vsync_r]
+set_property IOSTANDARD LVCMOS33 [get_ports href_r]
+set_property IOSTANDARD LVCMOS33 [get_ports pwdn_r]
+set_property IOSTANDARD LVCMOS33 [get_ports cam_rst_n_r]
+
+set_property PACKAGE_PIN L16 [get_ports xclk_r]
+set_property PACKAGE_PIN G19 [get_ports vsync_r]
+set_property PACKAGE_PIN H20 [get_ports href_r]
+set_property PACKAGE_PIN L19 [get_ports pwdn_r]
+set_property PACKAGE_PIN J19 [get_ports cam_rst_n_r]
+
+set_property PACKAGE_PIN K19 [get_ports siod_r]
+set_property IOSTANDARD LVCMOS33 [get_ports siod_r]
+set_property PULLTYPE PULLUP [get_ports siod_r]
+
+set_property PACKAGE_PIN J20 [get_ports sioc_r]
+set_property IOSTANDARD LVCMOS33 [get_ports sioc_r]
+set_property PULLTYPE PULLUP [get_ports sioc_r]
 
 
 # buttons

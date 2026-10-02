@@ -20,15 +20,6 @@ def rgb565_to_bgr(raw):
     img = np.frombuffer(raw, dtype=np.uint8).reshape((H, W, 2))
     return cv2.cvtColor(img, cv2.COLOR_BGR5652BGR)
 
-def rgb565_to_bgr_old(raw):
-    rgb565 = np.frombuffer(raw, dtype=np.uint16).reshape((H, W))
-    r = ((rgb565 >> 11) & 0x1F)
-    g = ((rgb565 >> 5) & 0x3F)
-    b = (rgb565 & 0x1F)
-    r = (r << 3) | (r >> 2)
-    g = (g << 2) | (g >> 4)
-    b = (b << 3) | (b >> 2)
-    return np.dstack((b, g, r)).astype(np.uint8)
 
 class FPSCounter:
     def __init__(self, name, alpha=0.1):

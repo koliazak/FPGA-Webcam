@@ -21,6 +21,8 @@ SHIFT_Y, SHIFT_X = 0, 0
 latest_jpeg = None
 jpeg_lock = threading.Lock()
 frame_ready = threading.Event()
+#clients = 0
+#clients_lock = threading.Lock()
 
 
 def load(path):
@@ -38,6 +40,7 @@ def compute_diff() -> bytes | None:
     a = np.frombuffer(raw_l, dtype=np.uint16).reshape((H, W))
     b = np.frombuffer(raw_r, dtype=np.uint16).reshape((H, W))
 
+
     ga = (a >> 5) & 0x3F
     gb = (b >> 5) & 0x3F
 
@@ -51,6 +54,8 @@ def compute_diff() -> bytes | None:
     d = np.abs(ga.astype(np.int16) - gb.astype(np.int16))
     d = np.where(d < THRESH, 0, d * GAIN).astype(np.uint8)
 
+    d = cv2.rotate(d, cv2.ROTATE_90_COUNTERCLOCKWISE)
+    d = cv2.flip(d,1)
     ret, jpeg = cv2.imencode('.jpg', d, [int(cv2.IMWRITE_JPEG_QUALITY), 85])
     return jpeg.tobytes() if ret else None
 
@@ -60,22 +65,25 @@ def encoder():
     last_l = last_r = 0
 
     while True:
+        #with clients_lock:
+        #    if clients == 0:
+        #        time.sleep(0.1)
+        #        continue
         try:
             st_l, st_r = os.stat(FRAME_L), os.stat(FRAME_R)
-            current_time_l = getattr(st_l, 'st_mtime_ns', 0)
-            current_time_r = getattr(st_r, 'st_mtime_ns', 0)
-            if current_time_l == last_l or current_time_r == last_r:
-                time.sleep(0.01)
-                continue
-            last_l,last_r = current_time_l, current_time_r
-            t1 = time.perf_counter()
-            jpeg = compute_diff()
-            t2 = time.perf_counter()
-            print(f"time for computing diff: {t2-t1:.3f}")
-            if jpeg:
-                with jpeg_lock:
-                    latest_jpeg = jpeg
-                frame_ready.set()
+            if st_l.st_mtime != last_l and st_r.st_mtime != last_r:
+                last_l = st_l.st_mtime
+                last_r = st_r.st_mtime
+
+                t1 = time.perf_counter()
+                jpeg = compute_diff()
+                t2 = time.perf_counter()
+                #print(f"time for computing diff: {t2-t1:.3f}")
+
+                if jpeg:
+                    with jpeg_lock:
+                        latest_jpeg = jpeg
+            time.sleep(0.015)
         except FileNotFoundError:
             time.sleep(0.1)
         except Exception as e:
@@ -83,9 +91,10 @@ def encoder():
             time.sleep(0.1)
 
 
+
 HTML = b'''<!DOCTYPE html>
 <html><body style="background:#111;text-align:center;">
-<img src="/video" width="640" height="480" style="border:2px solid #444;">
+<img src="/video" width="480" height="640" style="border:2px solid #444;">
 </body></html>'''
 
 
@@ -126,7 +135,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    
     threading.Thread(target=encoder, daemon=True).start()
+    time.sleep(0.2)
     with socketserver.ThreadingTCPServer(('10.0.0.2', PORT), Handler) as srv:
         print(f"Diff stream: http://<board-ip>:{PORT}/video")
         srv.serve_forever()

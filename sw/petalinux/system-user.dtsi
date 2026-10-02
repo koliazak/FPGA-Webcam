@@ -6,14 +6,22 @@
         #size-cells = <1>;
         ranges;
 
-        video_dma_mem: buffer@E000000 {
+        video_dma_mem_l: buffer@E000000 {
             no-map;
-            reg = <0xE000000 0x400000>;   /* 4MB reserved for frames */
+            reg = <0xE000000 0x200000>;   /* 2MB for left camera */
+        };
+        
+        video_dma_mem_r: buffer@E200000 {
+            no-map;
+            reg = <0xE200000 0x200000>;   /* 2MB for right camera */
         };
     };
 };
 
-&axi_dma_0 {
+&axi_dma_L {
     compatible = "generic-uio";
 };
 
+&axi_dma_R {
+    compatible = "generic-uio";
+};
