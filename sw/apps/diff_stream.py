@@ -153,7 +153,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     #stream_fps.tick()
                     time.sleep(0.04)   # ~25 fps
             except (BrokenPipeError, ConnectionResetError):
-                break
+                pass
             finally:
                 with clients_lock:
                     clients -= 1
