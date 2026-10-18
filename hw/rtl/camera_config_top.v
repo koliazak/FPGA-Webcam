@@ -2,7 +2,7 @@
 
 module camera_config_top (
     input  wire clk,     // 50MHz
-    input  wire start,   // pulled-up
+    input  wire start,   // pulled-up | active LOW
     output wire done_led,
     output wire pwdn,
     output wire cam_rst_n,

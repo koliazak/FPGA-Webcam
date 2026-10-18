@@ -36,85 +36,109 @@ module ov7670_config (
     //   FFFF      = end of configuration
     //   FFF0      = delay marker
     // -----------------------------------------------------------------
-    localparam ROM_DEPTH = 76;
+    localparam ROM_DEPTH = 80;
     reg [15:0] rom [0:ROM_DEPTH-1];
 
     initial begin
-        rom[0]  = 16'h1280;
-        rom[1]  = 16'hFFF0;
-        rom[2]  = 16'h1204;
-        rom[3]  = 16'h1180;
-        rom[4]  = 16'h0C00;
-        rom[5]  = 16'h3E00;
-        rom[6]  = 16'h0400;
-        rom[7]  = 16'h40D0;
-        rom[8]  = 16'h3A04;
-        rom[9]  = 16'h1418;
-        rom[10] = 16'h4FB3;
-        rom[11] = 16'h50B3;
-        rom[12] = 16'h5100;
-        rom[13] = 16'h523D;
-        rom[14] = 16'h53A7;
-        rom[15] = 16'h54E4;
-        rom[16] = 16'h589E;
-        rom[17] = 16'h3DC0;
-        rom[18] = 16'h1714;
-        rom[19] = 16'h1802;
-        rom[20] = 16'h3280;
-        rom[21] = 16'h1903;
-        rom[22] = 16'h1A7B;
-        rom[23] = 16'h030A;
-        rom[24] = 16'h0F41;
-        rom[25] = 16'h1E00;
-        rom[26] = 16'h330B;
-        rom[27] = 16'h3C78;
-        rom[28] = 16'h6900;
-        rom[29] = 16'h7400;
-        rom[30] = 16'hB084;
-        rom[31] = 16'hB10C;
-        rom[32] = 16'hB20E;
-        rom[33] = 16'hB380;
-        rom[34] = 16'h703A;
-        rom[35] = 16'h7135;
-        rom[36] = 16'h7211;
-        rom[37] = 16'h73F0;
-        rom[38] = 16'hA202;
-        rom[39] = 16'h7A20;
-        rom[40] = 16'h7B10;
-        rom[41] = 16'h7C1E;
-        rom[42] = 16'h7D35;
-        rom[43] = 16'h7E5A;
-        rom[44] = 16'h7F69;
-        rom[45] = 16'h8076;
-        rom[46] = 16'h8180;
-        rom[47] = 16'h8288;
-        rom[48] = 16'h838F;
-        rom[49] = 16'h8496;
-        rom[50] = 16'h85A3;
-        rom[51] = 16'h86AF;
-        rom[52] = 16'h87C4;
-        rom[53] = 16'h88D7;
-        rom[54] = 16'h89E8;
-        rom[55] = 16'h13E0;
-        rom[56] = 16'h0000;
-        rom[57] = 16'h1000;
-        rom[58] = 16'h0D40;
-        rom[59] = 16'h1418;
-        rom[60] = 16'hA505;
-        rom[61] = 16'hAB07;
-        rom[62] = 16'h2495;
-        rom[63] = 16'h2533;
-        rom[64] = 16'h26E3;
-        rom[65] = 16'h9F78;
-        rom[66] = 16'hA068;
-        rom[67] = 16'hA103;
-        rom[68] = 16'hA6D8;
-        rom[69] = 16'hA7D8;
-        rom[70] = 16'hA8F0;
-        rom[71] = 16'hA990;
-        rom[72] = 16'hAA94;
-        rom[73] = 16'h13E5;
-        rom[74] = 16'hFFFF;
+        rom[0]  = 16'h1280; // COM7: reset all registers
+        rom[1]  = 16'hFFF0; // delay
+
+        // 640x480 VGA, YUV 4:2:2
+        rom[2]  = 16'h1200; // COM7: YUV (COM7[2]=0, COM7[0]=0), VGA
+        rom[3]  = 16'h1180; // CLKRC: use external XCLK directly
+        rom[4]  = 16'h1300; // COM8: AEC/AGC/AWB/banding filter off
+        rom[5]  = 16'h0C00; // COM3: scaling and DCW disabled
+        rom[6]  = 16'h0D00; // COM4: full-window average
+        rom[7]  = 16'h3E00; // COM14: normal PCLK, manual scaling disabled
+        rom[8]  = 16'h4200; // COM17: full window
+
+        // Fixed 4:2:2 byte order and output range: YUYV, full 0..255.
+        rom[9]  = 16'h3B00; // COM11: night mode and 50/60 Hz auto detect off
+        rom[10] = 16'h3A00; // TSLB: normal UV, YUYV, auto output window off
+        rom[11] = 16'h3D80; // COM13: fixed gamma on, UV auto-adjust off
+        rom[12] = 16'h40C0; // COM15: full-range output; RGB fields unused
+        rom[13] = 16'h4108; // COM16: auto edge/de-noise off, AWB gain path on
+
+        // Manual exposure code 0x0100:
+        // {AECHH[5:0], AECH[7:0], COM1[1:0]} = 0x0100.
+        rom[14] = 16'h0400; // COM1: AEC[1:0]=0, CCIR656 disabled
+        rom[15] = 16'h0700; // AECHH: AEC[15:10]=0
+        rom[16] = 16'h1040; // AECH: AEC[9:2]=0x40
+
+        // Fixed gain and fixed white balance.
+        rom[17] = 16'h0000; // GAIN[7:0]=0 (minimum manual analog gain)
+        rom[18] = 16'h0300; // VREF: AGC[9:8]=0; VGA vertical LSBs=0
+        rom[19] = 16'h0180; // BLUE: fixed blue AWB gain
+        rom[20] = 16'h0280; // RED: fixed red AWB gain
+        rom[21] = 16'h6A00; // GGAIN: fixed green AWB gain
+        rom[22] = 16'h6900; // GFIX: Gr/Gb/R/B fixed at 1x
+        rom[23] = 16'h7400; // REG74: digital gain bypass
+
+        // 640x480 active window and deterministic timing.
+        rom[24] = 16'h1E00; // MVFP: mirror, vflip, black-sun off
+        rom[25] = 16'h1500; // COM10: normal PCLK/HREF/VSYNC polarities
+        rom[26] = 16'h1711; // HSTART: VGA default
+        rom[27] = 16'h1861; // HSTOP: VGA default
+        rom[28] = 16'h3280; // HREF: VGA default LSBs/edge offset
+        rom[29] = 16'h1903; // VSTRT: VGA default
+        rom[30] = 16'h1A7B; // VSTOP: VGA default
+        rom[31] = 16'h1B00; // PSHFT: no pixel-data delay
+        rom[32] = 16'h2A00; // EXHCH: no dummy pixels / HSYNC delay
+        rom[33] = 16'h2B00; // EXHCL: no dummy pixels
+        rom[34] = 16'h2D00; // ADVFL: no inserted dummy lines
+        rom[35] = 16'h2E00; // ADVFH: no inserted dummy lines
+        rom[36] = 16'h9200; // DM_LNL: no dummy lines
+        rom[37] = 16'h9300; // DM_LNH: no dummy lines
+
+        // Disable automatic/adaptive image functions.
+        rom[38] = 16'h6600; // LCC5: lens correction disabled
+        rom[39] = 16'h3F00; // EDGE: fixed edge enhancement factor 0
+        rom[40] = 16'h4C00; // DNSTH: fixed de-noise strength 0
+        rom[41] = 16'h4B00; // REG4B: UV average disabled
+        rom[42] = 16'h7600; // REG76: black/white pixel correction off
+//        rom[43] = 16'hB100; // ABLC1: automatic black-level calibration off
+//        rom[44] = 16'hBE00; // AD-CHB: blue black-level compensation 0
+//        rom[45] = 16'hBF00; // AD-CHR: red black-level compensation 0
+//        rom[46] = 16'hC000; // AD-CHGb: Gb black-level compensation 0
+//        rom[47] = 16'hC100; // AD-CHGr: Gr black-level compensation 0
+
+        // Fixed image-processing controls (datasheet defaults).
+        rom[48] = 16'h5500; // BRIGHT
+        rom[49] = 16'h5640; // CONTRAS
+        rom[50] = 16'h5780; // CONTRAS_CENTER
+        rom[51] = 16'h4F40; // MTX1
+        rom[52] = 16'h5034; // MTX2
+        rom[53] = 16'h510C; // MTX3
+        rom[54] = 16'h5217; // MTX4
+        rom[55] = 16'h5329; // MTX5
+        rom[56] = 16'h5440; // MTX6
+        rom[57] = 16'h581E; // MTXS: auto contrast center off
+        rom[58] = 16'hC9C0; // SATCTR: fixed saturation value
+        rom[59] = 16'hA400; // NT_CTRL: fixed frame-rate behavior
+        rom[60] = 16'h8C00; // RGB444 disabled (not used in YUV mode)
+
+        // Fixed gamma curve (datasheet defaults; enabled by COM13[7]).
+        rom[61] = 16'h7A24; // SLOP
+        rom[62] = 16'h7B04; // GAM1
+        rom[63] = 16'h7C07; // GAM2
+        rom[64] = 16'h7D10; // GAM3
+        rom[65] = 16'h7E28; // GAM4
+        rom[66] = 16'h7F36; // GAM5
+        rom[67] = 16'h8044; // GAM6
+        rom[68] = 16'h8152; // GAM7
+        rom[69] = 16'h8260; // GAM8
+        rom[70] = 16'h836C; // GAM9
+        rom[71] = 16'h8478; // GAM10
+        rom[72] = 16'h858C; // GAM11
+        rom[73] = 16'h869E; // GAM12
+        rom[74] = 16'h87BB; // GAM13
+        rom[75] = 16'h88D2; // GAM14
+        rom[76] = 16'h89E5; // GAM15
+
+        // Freeze AGC/AEC after all manual exposure/gain fields are written.
+        rom[77] = 16'h1401; // COM9: freeze AGC/AEC, 2x automatic ceiling
+        rom[78] = 16'h1300; // COM8: AEC/AGC/AWB/banding filter remain off
+        rom[79] = 16'hFFFF;
     end
 
 
@@ -184,7 +208,7 @@ module ov7670_config (
                     pwdn      <= 1'b1;
                     cam_rst_n <= 1'b0;
                     rom_addr  <= 7'd0;
-                    if (!start) begin
+                    if (!start | !done) begin
                         state <= ST_PWRDN_RELEASE;
                         timer <= 20'd500_000;   // 10 ms for 50 MHz clock
                     end
