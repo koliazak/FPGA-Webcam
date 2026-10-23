@@ -63,8 +63,13 @@ module ov7670_config (
         // {AECHH[5:0], AECH[7:0], COM1[1:0]} = 0x0100.
         rom[14] = 16'h0400; // COM1: AEC[1:0]=0, CCIR656 disabled
         rom[15] = 16'h0700; // AECHH: AEC[15:10]=0
+        
+        // Manual exposure level
+        // 1040 - standard
+        // 1020 - 0.5x
+        // 1080 - 2x
         rom[16] = 16'h1040; // AECH: AEC[9:2]=0x40
-
+        
         // Fixed gain and fixed white balance.
         rom[17] = 16'h0000; // GAIN[7:0]=0 (minimum manual analog gain)
         rom[18] = 16'h0300; // VREF: AGC[9:8]=0; VGA vertical LSBs=0
