@@ -1,0 +1,43 @@
+/ {
+
+	options {
+		u-boot {
+			compatible = "u-boot,config";
+			bootscr-address = /bits/ 64 <0x03000000>;
+		};
+	};
+
+	chosen {
+		bootargs = "earlycon console=ttyPS0,115200 clk_ignore_unused root=/dev/mmcblk0p2 rw rootwait cma=8M uio_pdrv_genirq.of_id=generic-uio";
+		stdout-path = "serial0:115200n8";
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		
+		video_dma_mem_l: buffer@E000000 {
+			no-map;
+			reg = <0xE000000 0x200000>;   /* 2MB for left camera */
+		};
+        
+		video_dma_mem_r: buffer@E200000 {
+			no-map;
+			reg = <0xE200000 0x200000>;   /* 2MB for right camera */
+		};
+	};
+};
+
+&axi_dma_L {
+	compatible = "generic-uio";
+};
+
+&axi_dma_R {
+	compatible = "generic-uio";
+};
+
+
+&gem0 {
+	local-mac-address = [00 0a 35 00 1e 53];
+};

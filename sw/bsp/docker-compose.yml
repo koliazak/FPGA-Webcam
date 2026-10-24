@@ -1,0 +1,13 @@
+services:
+  yocto-builder:
+    build: .
+    image: yocto-ubuntu-dev
+    container_name: yocto-builder
+    tty: true
+    stdin_open: true
+    security_opt:
+      - label:disable
+    volumes:
+      - ~/edf-workspace:/workspace
+    environment:
+      - TERM=xterm-256color

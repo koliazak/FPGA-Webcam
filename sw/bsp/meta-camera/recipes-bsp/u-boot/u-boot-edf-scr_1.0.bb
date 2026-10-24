@@ -1,0 +1,81 @@
+SUMMARY = "U-boot script for AMD Embedded Development Framework (meta-camera override)"
+DESCRIPTION = "Builds the U-Boot boot.scr boot script. \
+FILESEXTRAPATHS shadows the boot script template with the \
+camera-specific one (kernel+DTB are loaded from the FAT boot partition, \
+see files/edf-linux-boot.cmd)."
+LICENSE = "MIT"
+LIC_FILES_CHKSUM = "file://${COMMON_LICENSE_DIR}/MIT;md5=0835ade698e0bcf8506ecda2f7b4f302"
+
+# Shadow edf-linux-boot.cmd with the camera-specific template from ./files
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
+
+inherit deploy
+
+DEPENDS = "u-boot-mkimage-native"
+
+PACKAGE_ARCH = "${MACHINE_ARCH}"
+COMPATIBLE_MACHINE ?= "^$"
+COMPATIBLE_MACHINE:zynq = "zynq"
+COMPATIBLE_MACHINE:zynqmp = "zynqmp"
+COMPATIBLE_MACHINE:versal = "versal"
+COMPATIBLE_MACHINE:versal-net = "versal-net"
+COMPATIBLE_MACHINE:versal-2ve-2vm = "versal-2ve-2vm"
+COMPATIBLE_MACHINE:microblaze-v = "microblaze-v"
+
+SRC_URI_MBV ?= ""
+SRC_URI_MBV:microblaze-v = "file://edf-linux-boot.cmd.mbv64"
+SRC_URI = " \
+    file://edf-linux-boot.cmd \
+    ${SRC_URI_MBV} \
+    "
+
+KERNEL_BOOTCMD:zynq ?= "bootm"
+KERNEL_BOOTCMD:microblaze-v ?= "booti"
+KERNEL_BOOTCMD:aarch64 ?= "booti"
+
+# KERNEL_IMAGETYPE resolves to uImage on zynq (arm), Image on aarch64
+KERNEL_IMAGE ?= "${KERNEL_IMAGETYPE}"
+
+EDF_ROOT_PARTNUM ?= "3"
+
+# MBV64 kernel/ramdisk DDR load addresses are offsets from the machine's
+# DDR_BASEADDR, so the same boot script works for both low-memory (revA,
+# 0x80000000) and high-memory (revB, 0x100000000) DDR maps.
+EDF_KERNEL_LOAD_OFFSET ?= "0x10000000"
+EDF_RAMDISK_LOAD_OFFSET ?= "0x12e00000"
+EDF_KERNEL_ADDR_R = "${@'0x%x' % (int(d.getVar('DDR_BASEADDR') or '0x0', 16) + int(d.getVar('EDF_KERNEL_LOAD_OFFSET'), 16))}"
+EDF_RAMDISK_ADDR_R = "${@'0x%x' % (int(d.getVar('DDR_BASEADDR') or '0x0', 16) + int(d.getVar('EDF_RAMDISK_LOAD_OFFSET'), 16))}"
+
+do_compile() {
+    sed -e 's/@@KERNEL_BOOTCMD@@/${KERNEL_BOOTCMD}/' \
+        -e 's/@@KERNEL_IMAGE@@/${KERNEL_IMAGE}/' \
+        -e 's/@@ROOT_PARTNUM@@/${EDF_ROOT_PARTNUM}/' \
+        "${WORKDIR}/edf-linux-boot.cmd" > "${WORKDIR}/boot.cmd"
+
+    mkimage -A arm -T script -C none -n "EDF Boot script" \
+        -d "${WORKDIR}/boot.cmd" boot.scr
+}
+
+do_compile:microblaze-v () {
+    sed -e 's/@@KERNEL_BOOTCMD@@/${KERNEL_BOOTCMD}/' \
+        -e 's/@@KERNEL_ADDR_R@@/${EDF_KERNEL_ADDR_R}/' \
+        -e 's/@@RAMDISK_ADDR_R@@/${EDF_RAMDISK_ADDR_R}/' \
+        "${WORKDIR}/edf-linux-boot.cmd.mbv64" > "${WORKDIR}/boot.cmd"
+
+    mkimage -A riscv -T script -C none -n "EDF Boot script" \
+        -d "${WORKDIR}/boot.cmd" boot.scr
+}
+
+do_install() {
+    install -d ${D}/boot
+    install -m 0644 boot.scr ${D}/boot
+}
+
+FILES:${PN} = "/boot/*"
+
+do_deploy() {
+    install -d ${DEPLOYDIR}
+    install -m 0644 boot.scr ${DEPLOYDIR}
+}
+
+addtask do_deploy after do_compile before do_build
