@@ -72,7 +72,7 @@ module stereo_rectify_top(
 
     dual_port_rom #(
         .DATA_WIDTH(36),
-        .ADDR_WIDTH(11), // log2(30*40) = 11 | *rounded up
+        .ADDR_WIDTH(11), // log2(31*41) = 11 | *rounded up
         .INIT_FILE("rect_map.hex")
     ) rom0 (
         .clk(clk),
