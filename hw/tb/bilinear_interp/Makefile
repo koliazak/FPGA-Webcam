@@ -8,6 +8,6 @@ VERILOG_SOURCES += $(PWD)/../../rtl/stereo/rectifier/dual_port_rom.v
 
 TOPLEVEL = stereo_rectify_top
 
-COCOTB_TEST_MODULES = interp_tb
+COCOTB_TEST_MODULES = test_interp
 
 include $(shell cocotb-config --makefiles)/Makefile.sim

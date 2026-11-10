@@ -6,7 +6,6 @@ module ov7670_config (
     input wire start,          // active low (pulled-up btn)
     output reg done,
 
-
     output reg [6:0] s_axis_cmd_address,
     output reg       s_axis_cmd_start,
     output reg       s_axis_cmd_write,
@@ -23,10 +22,8 @@ module ov7670_config (
     output reg       s_axis_data_tlast,
 
     input wire i2c_busy,
-    input wire i2c_missed_ack, // ignored for SCCB
+    input wire i2c_missed_ack // ignored for SCCB
 
-    output reg pwdn,
-    output reg cam_rst_n
 );
 
     // -----------------------------------------------------------------
@@ -101,11 +98,14 @@ module ov7670_config (
         rom[40] = 16'h4C00; // DNSTH: fixed de-noise strength 0
         rom[41] = 16'h4B00; // REG4B: UV average disabled
         rom[42] = 16'h7600; // REG76: black/white pixel correction off
-//        rom[43] = 16'hB100; // ABLC1: automatic black-level calibration off
-//        rom[44] = 16'hBE00; // AD-CHB: blue black-level compensation 0
-//        rom[45] = 16'hBF00; // AD-CHR: red black-level compensation 0
-//        rom[46] = 16'hC000; // AD-CHGb: Gb black-level compensation 0
-//        rom[47] = 16'hC100; // AD-CHGr: Gr black-level compensation 0
+
+        // !!! Check on video
+        rom[43] = 16'hB100; // ABLC1: automatic black-level calibration off
+        rom[44] = 16'hBE00; // AD-CHB: blue black-level compensation 0
+        rom[45] = 16'hBF00; // AD-CHR: red black-level compensation 0
+        rom[46] = 16'hC000; // AD-CHGb: Gb black-level compensation 0
+        rom[47] = 16'hC100; // AD-CHGr: Gr black-level compensation 0
+
 
         // Fixed image-processing controls (datasheet defaults).
         rom[48] = 16'h5500; // BRIGHT
@@ -168,21 +168,17 @@ module ov7670_config (
     reg [15:0] rom_data;
     reg [7:0] reg_addr;
     reg [7:0] reg_val;
-    reg       start_d;      // for edge detect
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state  <= ST_IDLE;
             done   <= 1'b0;
-            pwdn   <= 1'b1;      // power-down active high
-            cam_rst_n <= 1'b0;   // reset active low
 
             rom_addr  <= 7'd0;
             rom_data  <= 16'd0;
             reg_addr  <= 8'd0;
             reg_val   <= 8'd0;
             timer     <= 20'd0;
-            start_d   <= 1'b1;
 
             s_axis_cmd_address      <= 7'd0;
             s_axis_cmd_start        <= 1'b0;
@@ -201,7 +197,6 @@ module ov7670_config (
             s_axis_data_tvalid <= 1'b0;
             s_axis_data_tlast  <= 1'b0;
 
-            start_d <= start;
 
             if (timer != 20'd0)
                 timer <= timer - 1'b1;
@@ -210,18 +205,14 @@ module ov7670_config (
             
                 ST_IDLE: begin
                     done      <= 1'b0;
-                    pwdn      <= 1'b1;
-                    cam_rst_n <= 1'b0;
                     rom_addr  <= 7'd0;
-                    if (!start | !done) begin
+                    if (!start) begin
                         state <= ST_PWRDN_RELEASE;
                         timer <= 20'd500_000;   // 10 ms for 50 MHz clock
                     end
                 end
 
                 ST_PWRDN_RELEASE: begin
-                    pwdn      <= 1'b0;
-                    cam_rst_n <= 1'b0;
                     if (timer == 20'd0) begin
                         state <= ST_RESET_WAIT;
                         timer <= 20'd500_000;   // 10 ms
@@ -229,8 +220,6 @@ module ov7670_config (
                 end
 
                 ST_RESET_WAIT: begin
-                    pwdn      <= 1'b0;
-                    cam_rst_n <= 1'b0;
                     if (timer == 20'd0) begin
                         state <= ST_POST_RESET;
                         timer <= 20'd500_000;   // 10 ms
@@ -239,8 +228,6 @@ module ov7670_config (
 
 
                 ST_POST_RESET: begin
-                    pwdn      <= 1'b0;
-                    cam_rst_n <= 1'b1;
                     if (timer == 20'd0) begin
                         state <= ST_READ_ROM;
                     end
@@ -314,9 +301,7 @@ module ov7670_config (
                 // All registers written
                 ST_DONE: begin
                     done <= 1'b1;
-                    if (!start && start_d) begin
-                        state <= ST_IDLE;
-                    end
+                    state <= ST_IDLE;
                 end
 
                 default: state <= ST_IDLE;
