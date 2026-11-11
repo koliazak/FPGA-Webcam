@@ -49,7 +49,7 @@ module bilinear_interp_core (
             // ===================================
             // STAGE 2: calculate result
             // ===================================
-            result <= top_val + ($signed({1'b0, dy}) * (bot_val - top_val) >>> 4);
+            result <= top_val + ($signed({1'b0, dy_reg}) * (bot_val - top_val) >>> 4);
             valid_out <= valid_reg;
         end 
 
