@@ -1,8 +1,8 @@
 `timescale 1ns / 1ps
 
 module ov7670_axi_stream_capture #(
-    parameter WIDTH = 640,
-    parameter HEIGHT = 480
+    parameter WIDTH = 640
+    // parameter HEIGHT = 480
 )(
     input  wire        pclk,
     input  wire        vsync,
@@ -17,7 +17,7 @@ module ov7670_axi_stream_capture #(
     output wire        aclk
 );
 
-    assign aclk = ~pclk;
+    assign aclk = pclk;
     reg        latched_vsync = 0;
     reg        latched_href  = 0;
     reg [7:0]  latched_d     = 0;
@@ -50,18 +50,12 @@ module ov7670_axi_stream_capture #(
             end
         end else begin
             byte_idx <= 0;
+
         end
     end
 
-
-    // FSM
-    localparam ST_WAIT_VSYNC = 2'd0;
-    localparam ST_CAPTURE    = 2'd1;
-    localparam ST_ABORT      = 2'd2;
-
-    reg [1:0]  state = ST_WAIT_VSYNC;
-    reg [18:0] pixel_cnt = 0;
-    reg        early_tlast_sent = 0;
+    reg first_pixel = 0;
+    reg [$clog2(WIDTH)-1:0] col = 0;
 
     reg        tvalid_reg = 0;
     reg [15:0] tdata_reg  = 0;
@@ -74,55 +68,27 @@ module ov7670_axi_stream_capture #(
     assign m_axis_tuser  = tuser_reg;
 
     always @(posedge pclk) begin
-        if (tvalid_reg && m_axis_tready) begin
+        if (tvalid_reg) begin
             tvalid_reg <= 1'b0;
             tlast_reg  <= 1'b0;
             tuser_reg  <= 1'b0;
         end
-
-        if (latched_vsync) begin
-            if (m_axis_tready) begin
-                state <= ST_CAPTURE;
-            end else begin
-                state <= ST_WAIT_VSYNC;
-            end
-            pixel_cnt <= 0;
-            early_tlast_sent <= 0;
-            tvalid_reg <= 1'b0;
-            tlast_reg  <= 1'b0;
+        if (!latched_href) begin            
+            col       <= 0;
+        end
+        if (latched_vsync) begin   
+            first_pixel <= 1'b1;
+            tvalid_reg  <= 1'b0;
+            tlast_reg   <= 1'b0;
         end else begin
-            case (state)
-                ST_CAPTURE: begin
-                    if (pixel_ready) begin
-                        // Handling FIFO overflow
-                        if (tvalid_reg && !m_axis_tready) begin
-			// Abort frame if FIFO is overflowed
-                            state <= ST_ABORT;
-                        end else begin
-                            tdata_reg  <= pixel_data;
-                            tvalid_reg <= 1'b1;
-                            tuser_reg  <= (pixel_cnt == 0); // SOF on the first pixel
-                            tlast_reg  <= (pixel_cnt == (WIDTH * HEIGHT) - 1); // EOF on the last pixel
-                            pixel_cnt  <= pixel_cnt + 1;
-                        end
-                    end
-                end
-
-                ST_ABORT: begin
-                    // "fake" TLAST, so DMA sends interrupt
-                    // and this error is detected in software
-                    if (!early_tlast_sent && !tvalid_reg) begin
-                        tdata_reg  <= 16'h0000;
-                        tvalid_reg <= 1'b1;
-                        tlast_reg  <= 1'b1;
-                        early_tlast_sent <= 1'b1;
-                    end
-                end
-
-                ST_WAIT_VSYNC: begin
-                    // just ignore pixels while waiting for vsync
-                end
-            endcase
+            if (pixel_ready) begin                        
+                tdata_reg   <= pixel_data;
+                tvalid_reg  <= 1'b1;
+                tuser_reg   <= first_pixel; // SOF on the first pixel
+                first_pixel <= 1'b0;
+                tlast_reg  <= col == (WIDTH - 1);
+                col <= (col == WIDTH-1) ? 0 : col + 1; 
+            end
         end
     end
 
