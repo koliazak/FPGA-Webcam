@@ -1,15 +1,15 @@
-"""Stereo calibration for stereo pair 640x480 (cameras are rotated 90-deg clockwise!!!)."""
+"""Stereo calibration for stereo pair 640x480."""
 
 import glob
 import numpy as np
 import cv2
 
 PHOTO_DIR    = './calib_photos'
-SQUARE_M     = 0.026
+SQUARE_M     = 0.0298
 RAW_W, RAW_H = 640, 480
-PATTERN     = (7, 4)              # number of intersections on a chessboard
+PATTERN     = (6, 4)              # number of intersections on a chessboard
 OUT_FILE     = 'stereo_calib.npz'
-MODE = "RGB565"                   # "YUV422" | "RGB565"
+MODE = "YUV422"                   # "YUV422" | "RGB565"
 
 
 def load_gray(path) -> np.ndarray | None:
@@ -28,7 +28,7 @@ def load_gray(path) -> np.ndarray | None:
         return gray_img.reshape(RAW_H, RAW_W)
     elif MODE == "YUV422":
         raw_u8 = raw.view(np.uint8)
-        gray_img = raw_u8.reshape(RAW_H, RAW_W * 2)[:, 0::2].astype(np.float32)
+        gray_img = raw_u8.reshape(RAW_H, RAW_W * 2)[:, 1::2].astype(np.uint8)
         return gray_img
 
 def make_objp(pattern):
@@ -57,10 +57,18 @@ for f_l in sorted(glob.glob(f'{PHOTO_DIR}/calib_*_L.raw')):
     if pat_l is None or pat_r is None or pat_l != pat_r:
         print(f'[skip] {f_l}: board L={pat_l} R={pat_r}'); continue
 
+    # A board with odd x odd squares looks the same rotated by 180 deg, so the
+    # detector may number the corners from opposite ends in L and R.
+    c_l = c_l.reshape(-1, 1, 2).astype(np.float32)
+    c_r = c_r.reshape(-1, 1, 2).astype(np.float32)
+    flipped = np.dot(c_l[-1, 0] - c_l[0, 0], c_r[-1, 0] - c_r[0, 0]) < 0
+    if flipped:
+        c_r = c_r[::-1].copy()
+
     objpoints.append(make_objp(pat_l))
     pts_l.append(c_l); pts_r.append(c_r)
     used += 1
-    print(f'[ ok ] {f_l}  pattern={pat_l}')
+    print(f'[ ok ] {f_l}  pattern={pat_l}{"  (R corner order flipped)" if flipped else ""}')
 
 print(f'\nused pairs: {used}')
 if used < 6:

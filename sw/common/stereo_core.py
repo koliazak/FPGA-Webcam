@@ -1,8 +1,5 @@
 """
 Stereo Core Processing Engine
-
-!!! 90-degree rotation applied at the final
-    visualization stage due to holder construction.
 """
 
 import time
@@ -70,8 +67,8 @@ class StereoDepthPipeline:
 
         self._buf_rl = np.empty((self.h, self.w), dtype=np.uint8)
         self._buf_rr = np.empty((self.h, self.w), dtype=np.uint8)
-        self._buf_rl_pad = np.empty((self.w, self.h + self.pad), dtype=np.uint8)
-        self._buf_rr_pad = np.empty((self.w, self.h + self.pad), dtype=np.uint8)
+        self._buf_rl_pad = np.empty((self.h, self.w + self.pad), dtype=np.uint8)
+        self._buf_rr_pad = np.empty((self.h, self.w + self.pad), dtype=np.uint8)
 
 
         self.quant = quant
@@ -117,17 +114,16 @@ class StereoDepthPipeline:
         Processes a raw stereo pair into a dense metric depth map.
         
         Args:
-            raw_l: Left image or raw buffer (uint8 Luma 480x640 or YUYV 480x1280)
-            raw_r: Right image or raw buffer (uint8 Luma 480x640 or YUYV 480x1280)
+            raw_l: Left image or raw buffer (uint8 Luma 480x640 or UYVY 480x1280)
+            raw_r: Right image or raw buffer (uint8 Luma 480x640 or UYVY 480x1280)
             
         Returns:
             dict containing:
                 'depth': metric depth map in native sensor orientation (float32, meters)
                 'disp': disparity map in native sensor orientation (float32, pixels)
                 'valid': boolean mask of valid depth pixels in native orientation
-                'colored': BGR color-mapped depth in native orientation (uint8, 480x640x3)
-                'vis_depth': BGR color-mapped depth rotated right (uint8, 640x480x3)
-                'vis_left': BGR rectified left camera frame rotated right (uint8, 640x480x3)
+                'vis_depth': BGR color-mapped depth (uint8, 480x640x3)
+                'vis_left': BGR rectified left camera frame (uint8, 480x640x3)
                 'center_depth': metric depth at center crosshair (float, meters)
         """
 
@@ -145,19 +141,11 @@ class StereoDepthPipeline:
         rl = cv2.remap(gl, *self.map_l, cv2.INTER_LINEAR, dst=self._buf_rl)
         rr = cv2.remap(gr, *self.map_r, cv2.INTER_LINEAR, dst=self._buf_rr)
 
-        # Block Matching in NATIVE sensor orientation
-        # Due to physical 90-deg CW mounting, the calibrated physical baseline is along
-        # the sensor's vertical axis (columns).
-        # So it's needed to align scanlines with cv2.StereoBM by transposing coordinates (.T).
-
-        rl_t = rl.T  # shape (640, 480)
-        rr_t = rr.T  # shape (640, 480)
-
-        rl_pad = cv2.copyMakeBorder(rl_t, 0, 0, self.pad, 0, cv2.BORDER_REPLICATE, dst=self._buf_rl_pad)
-        rr_pad = cv2.copyMakeBorder(rr_t, 0, 0, self.pad, 0, cv2.BORDER_REPLICATE, dst=self._buf_rr_pad)
+        rl_pad = cv2.copyMakeBorder(rl, 0, 0, self.pad, 0, cv2.BORDER_REPLICATE, dst=self._buf_rl_pad)
+        rr_pad = cv2.copyMakeBorder(rr, 0, 0, self.pad, 0, cv2.BORDER_REPLICATE, dst=self._buf_rr_pad)
 
         raw_disp_pad = self.matcher.compute(rl_pad, rr_pad)
-        raw_disp = raw_disp_pad[:, self.pad:].T.astype(np.float32) / 16.0
+        raw_disp = raw_disp_pad[:, self.pad:].astype(np.float32) / 16.0
 
         # Disparity filtering & metric depth calculation
         disp_filtered = cv2.medianBlur(raw_disp, 5)
@@ -194,12 +182,9 @@ class StereoDepthPipeline:
         colored[~valid] = [0, 0, 0]
 
 
-        vis_depth = cv2.rotate(colored, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        vis_left = cv2.rotate(rl, cv2.ROTATE_90_COUNTERCLOCKWISE)
 
-        cy, cx = vis_depth.shape[0] // 2, vis_depth.shape[1] // 2
-        rot_depth = cv2.rotate(active_depth, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        center_patch = rot_depth[cy - 2 : cy + 3, cx - 2 : cx + 3]
+        cy, cx = colored.shape[0] // 2, colored.shape[1] // 2
+        center_patch = active_depth[cy - 2 : cy + 3, cx - 2 : cx + 3]
         valid_center = center_patch[center_patch > 0]
         center_dist = float(np.median(valid_center)) if len(valid_center) > 0 else 0.0
 
@@ -207,9 +192,8 @@ class StereoDepthPipeline:
             'depth': active_depth,
             'disp': disp_filtered,
             'valid': valid,
-            'colored': colored,
-            'vis_depth': vis_depth,
-            'vis_left': cv2.cvtColor(vis_left, cv2.COLOR_GRAY2BGR),
+            'vis_depth': colored,
+            'vis_left': cv2.cvtColor(rl, cv2.COLOR_GRAY2BGR),
             'center_depth': center_dist,
         }
 
@@ -233,9 +217,9 @@ class StereoDepthPipeline:
         if mode == 'depth':
             canvas = vis_depth.copy()
         elif mode == 'overlay':
-            valid_rot = cv2.rotate(result['valid'].astype(np.uint8), cv2.ROTATE_90_COUNTERCLOCKWISE).astype(bool)
+            valid = result['valid'].astype(np.uint8).astype(bool)
             canvas = vis_left.copy()
-            canvas[valid_rot] = cv2.addWeighted(vis_left[valid_rot], 0.35, vis_depth[valid_rot], 0.65, 0)
+            canvas[valid] = cv2.addWeighted(vis_left[valid], 0.35, vis_depth[valid], 0.65, 0)
         else: # 'combo' 
             canvas = np.hstack([vis_left, vis_depth])
 
@@ -318,23 +302,28 @@ class StereoDepthPipeline:
         return canvas
 
     def _extract_luma(self, frame):
-        """Extracts 8-bit Luma channel from YUYV 4:2:2 raw or grayscale, handling scaling."""
+        """Extracts 8-bit Luma channel from 4:2:2 raw or grayscale, handling scaling.
+
+        The sensor outputs YUYV, but the capture packs each byte pair as
+        tdata = {Y, C} and the DMA stores it little-endian, so frames in DDR are
+        UYVY: luma is in the odd bytes.
+        """
         if isinstance(frame, np.ndarray):
             if frame.dtype == np.uint8:
                 if frame.shape == (self.raw_h, self.raw_w):
                     return frame
                 elif frame.shape == (self.raw_h, self.raw_w * 2):
-                    return frame[:, 0::2]
+                    return frame[:, 1::2]
                 elif frame.shape == (self.h, self.w):
                     return frame
                 elif frame.size == self.raw_h * self.raw_w * 2:
-                    return frame.reshape(self.raw_h, self.raw_w * 2)[:, 0::2]
+                    return frame.reshape(self.raw_h, self.raw_w * 2)[:, 1::2]
                 elif frame.size == self.raw_h * self.raw_w:
                     return frame.reshape(self.raw_h, self.raw_w)
 
         buf = np.frombuffer(frame, dtype=np.uint8)
         if buf.size == self.raw_h * self.raw_w * 2:
-            luma = buf.reshape(self.raw_h, self.raw_w * 2)[:, 0::2]
+            luma = buf.reshape(self.raw_h, self.raw_w * 2)[:, 1::2]
         elif buf.size == self.raw_h * self.raw_w:
             luma = buf.reshape(self.raw_h, self.raw_w)
         elif buf.size == self.h * self.w:

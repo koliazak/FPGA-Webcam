@@ -72,8 +72,8 @@ def render():
     
     l8 = np.frombuffer(raw_l, np.uint8).reshape(H,W*2)
     r8 = np.frombuffer(raw_r, np.uint8).reshape(H,W*2)
-    gl  = l8[:, 0::2]
-    gr  = r8[:, 0::2]
+    gl  = l8[:, 1::2]
+    gr  = r8[:, 1::2]
 
 
     ret_l, jpeg_l = cv2.imencode('.jpg', gl, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
