@@ -65,20 +65,20 @@ module ov7670_config (
         // 1040 - standard
         // 1020 - 0.5x
         // 1080 - 2x
-        rom[16] = 16'h1040; // AECH: AEC[9:2]=0x40
+        rom[16] = 16'h1080; // AECH: AEC[9:2]=0x80 (2x exposure)
         
         // Fixed gain and fixed white balance.
         rom[17] = 16'h0000; // GAIN[7:0]=0 (minimum manual analog gain)
         rom[18] = 16'h0300; // VREF: AGC[9:8]=0; VGA vertical LSBs=0
-        rom[19] = 16'h0180; // BLUE: fixed blue AWB gain
-        rom[20] = 16'h0280; // RED: fixed red AWB gain
-        rom[21] = 16'h6A00; // GGAIN: fixed green AWB gain
+        rom[19] = 16'h0140; // BLUE: fixed blue AWB gain
+        rom[20] = 16'h0240; // RED: fixed red AWB gain
+        rom[21] = 16'h6A40; // GGAIN: fixed green AWB gain
         rom[22] = 16'h6900; // GFIX: Gr/Gb/R/B fixed at 1x
         rom[23] = 16'h7400; // REG74: digital gain bypass
 
         // 640x480 active window and deterministic timing.
         rom[24] = 16'h1E00; // MVFP: mirror, vflip, black-sun off
-        rom[25] = 16'h1500; // COM10: normal PCLK/HREF/VSYNC polarities
+        rom[25] = 16'h1510; // COM10: PCLK inverted (data stable on capture negedge); HREF/VSYNC normal
         rom[26] = 16'h1711; // HSTART: VGA default
         rom[27] = 16'h1861; // HSTOP: VGA default
         rom[28] = 16'h3280; // HREF: VGA default LSBs/edge offset
@@ -120,7 +120,7 @@ module ov7670_config (
         rom[57] = 16'h581E; // MTXS: auto contrast center off
         rom[58] = 16'hC9C0; // SATCTR: fixed saturation value
         rom[59] = 16'hA400; // NT_CTRL: fixed frame-rate behavior
-        rom[60] = 16'h8C00; // RGB444 disabled (not used in YUV mode)
+        rom[60] = 16'h0900; // COM2: output drive 1x (2x causes PCLK crosstalk -> DMA 0x5011)
 
         // Fixed gamma curve (datasheet defaults; enabled by COM13[7]).
         rom[61] = 16'h7A24; // SLOP
