@@ -17,7 +17,25 @@ module camera_config_top (
     output wire cam_rst_n_r,
     output wire xclk_r,
     inout  wire siod_r,
-    inout  wire sioc_r
+    inout  wire sioc_r,
+
+
+    // PS ports
+
+
+    input  wire ps_scl_o_l,
+    input  wire ps_scl_t_l,
+    input  wire ps_sda_o_l,
+    input  wire ps_sda_t_l,
+    output wire ps_scl_i_l,
+    output wire ps_sda_i_l,
+
+    input  wire ps_scl_o_r,
+    input  wire ps_scl_t_r,
+    input  wire ps_sda_o_r,
+    input  wire ps_sda_t_r,
+    output wire ps_scl_i_r,
+    output wire ps_sda_i_r
 );
 
     // 24 MHz
@@ -55,19 +73,23 @@ module camera_config_top (
 
     reg cam_sel; // 0 - Camera L, 1 - Camera R
 
-    assign scl_o_l = scl_o;
-    assign sda_o_l = sda_o;
-    assign scl_o_r = scl_o;
-    assign sda_o_r = sda_o;
+    assign scl_o_l = 1'b0;
+    assign sda_o_l = 1'b0;
+    assign scl_o_r = 1'b0;
+    assign sda_o_r = 1'b0;
 
-    assign scl_t_l = (cam_sel == 1'b0) ? scl_t : 1'b1;
-    assign sda_t_l = (cam_sel == 1'b0) ? sda_t : 1'b1;
-    assign scl_t_r = (cam_sel == 1'b1) ? scl_t : 1'b1;
-    assign sda_t_r = (cam_sel == 1'b1) ? sda_t : 1'b1;
+    assign scl_t_l = ( (cam_sel == 1'b0) ? scl_t : 1'b1 ) & ps_scl_t_l;
+    assign sda_t_l = ( (cam_sel == 1'b0) ? sda_t : 1'b1 ) & ps_sda_t_l;
+    assign scl_t_r = ( (cam_sel == 1'b1) ? scl_t : 1'b1 ) & ps_scl_t_r;
+    assign sda_t_r = ( (cam_sel == 1'b1) ? sda_t : 1'b1 ) & ps_sda_t_r;
 
     assign scl_i = (cam_sel == 1'b0) ? scl_i_l : scl_i_r;
     assign sda_i = (cam_sel == 1'b0) ? sda_i_l : sda_i_r;
-
+    
+    assign ps_scl_i_l = scl_i_l; 
+    assign ps_scl_i_r = scl_i_r;
+    assign ps_sda_i_l = sda_i_l;
+    assign ps_sda_i_r = sda_i_r;
 
     // --- Debounce for start button ---
 
